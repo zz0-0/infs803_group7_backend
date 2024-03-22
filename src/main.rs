@@ -2,10 +2,9 @@ mod user;
 mod movie;
 
 use axum::{
-    http::StatusCode, routing::get, Json, Router
+    routing::get, Router
 };
-use chrono::Utc;
-use serde_json::json;
+
 use user::*;
 use movie::*;
 
@@ -13,11 +12,11 @@ use movie::*;
 async fn main() {
     // build our application with a single route
 
-    let mut json_result: Vec<User> = Vec::new();
-    json_result.push(User { id: Some(1), name: "a".to_owned(), created_at: Some(Utc::now()), updated_at: Some(Utc::now()) });
+    // let mut json_result: Vec<User> = Vec::new();
+    // json_result.push(User { id: Some(1), name: "a".to_owned(), created_at: Some(Utc::now()), updated_at: Some(Utc::now()) });
     let app = Router::new()
     .route("/", get(|| async { "Hello, World!" }))
-    .route("/api/users", get((StatusCode::OK, Json(json!(json_result)))))
+    .route("/api/users", get(fetch_users))
     .route("/api/user/:id", get(fetch_user).post(create_user).patch(update_user).delete(delete_user))
     .route("/api/movie/:id", get(fetch_movie).post(create_movie).patch(update_movie).delete(delete_movie));
 
