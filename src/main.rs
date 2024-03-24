@@ -11,7 +11,7 @@ use movie::*;
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-    .route("/", get(|| async { "Hello, World!" }))
+    
     .route("/api/users", get(fetch_users))
 
     .route("/api/user/:id", get(fetch_user)
