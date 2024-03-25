@@ -18,12 +18,15 @@ pub struct User {
 pub async fn fetch_users() -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     let firebase = Firebase::new("https://infs803-group7-default-rtdb.firebaseio.com/").unwrap();
     let data = firebase.at("users");
-    let users = data.get::<Vec<User>>().await.map_err(|e| {
-        let error = serde_json::json!({"message": format!("Database error: { }", e)});
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(error))
-    });
-    let json_response = serde_json::json!({"users": &users.unwrap()});
-    Ok((StatusCode::OK, Json(json_response)))
+    let users = data.get::<Vec<User>>().await;
+    let json_response = serde_json::json!({"users": users.as_ref().unwrap()});
+    match users {
+        Ok(_) => Ok((StatusCode::OK, Json(serde_json::json!(json_response)))),
+        Err(e) => Ok((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"message": format!("list users fail: { }", e)})),
+        )),
+    }
 }
 
 pub async fn create_user(
@@ -31,8 +34,8 @@ pub async fn create_user(
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     let firebase = Firebase::new("https://infs803-group7-default-rtdb.firebaseio.com/").unwrap();
     let data = firebase.at("users");
-    let users = data.set::<User>(&user).await;
-    match users {
+    let user = data.set::<User>(&user).await;
+    match user {
         Ok(_) => Ok((
             StatusCode::OK,
             Json(serde_json::json!({"message": "create user successful"})),
