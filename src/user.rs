@@ -21,7 +21,7 @@ pub async fn fetch_users() -> Result<impl IntoResponse, (StatusCode, Json<Value>
     let users = data.get::<Vec<User>>().await;
     let json_response = serde_json::json!({"users": users.as_ref().unwrap()});
     match users {
-        Ok(_) => Ok((StatusCode::OK, Json(serde_json::json!(json_response)))),
+        Ok(_) => Ok((StatusCode::OK, Json(json_response))),
         Err(e) => Ok((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"message": format!("list users fail: { }", e)})),
@@ -55,7 +55,7 @@ pub async fn fetch_user(
     let user = data.get::<User>().await;
     let json_response = serde_json::json!(user.as_ref().unwrap());
     match user.as_ref() {
-        Ok(_) => Ok((StatusCode::OK, Json(serde_json::json!(json_response)))),
+        Ok(_) => Ok((StatusCode::OK, Json(json_response))),
         Err(e) => Ok((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"message": format!("create user fail: { }", e)})),
