@@ -30,9 +30,8 @@ async fn main() {
     let server_config = ServerConfig { firebase: firebase };
 
     let app = Router::new()
-        // .route("/login", post(login_account))
-        // .route("/authenticate", post(authenticate))
-        // .route("/refresh", post(refresh_token))
+        .route("/login", post(login_account))
+        .route("/refresh", post(refresh_token))
         .route("/users", get(fetch_users))
         .route_layer(from_fn(validate))
         .route(

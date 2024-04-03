@@ -10,11 +10,13 @@ use serde_json::Value;
 
 use crate::ServerConfig;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
     pub id: Option<i32>,
     pub name: String,
     pub level: Option<i32>,
+    pub username: String,
+    pub password: String,
     pub created_at: String,
     pub updated_at: String,
 }

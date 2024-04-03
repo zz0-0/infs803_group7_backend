@@ -4,49 +4,63 @@ use axum::{
     http::{Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
-    BoxError, Json,
+    Json,
 };
-use jsonwebtoken::{
-    decode, encode, Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation,
-};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
-use crate::ServerConfig;
+use crate::{ServerConfig, User};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Claims {
     sub: String,
     exp: usize,
 }
 
-// pub async fn login_account(
-//     State(server_config): State<ServerConfig>,
-// ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-//     let data = server_config.firebase.at("token");
-//     // let users = data.get::<Vec<User>>().await;
+#[derive(Serialize, Deserialize)]
+pub struct LoginRequest {
+    username: String,
+    password: String,
+}
+#[derive(Serialize, Deserialize)]
+pub struct RefreshRequest {
+    refresh_token: String,
+}
 
-//     match users {
-//         Ok(_) => Ok((StatusCode::OK, Json(json_response))),
-//         Err(e) => Ok((
-//             StatusCode::INTERNAL_SERVER_ERROR,
-//             Json(serde_json::json!({"message": format!("list users fail: { }", e)})),
-//         )),
-//     }
-// }
+pub async fn login_account(
+    State(server_config): State<ServerConfig>,
+    Json(login_request): Json<LoginRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
+    let data = server_config
+        .firebase
+        .at("users")
+        .at(&login_request.username);
+    let user = data.get::<User>().await.ok();
+    let username = &user.as_ref().unwrap().username;
+    let password = &user.as_ref().unwrap().password;
 
-// pub async fn authenticate(
-//     State(server_config): State<ServerConfig>,
-// ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-//     let secret = "secret";
-//     // let decode = decode_jwt(token, secret);
-//     let claims = &Claims { sub: (), exp: () };
-//     let encode = encode_jwt(claims, secret);
-//     match encode {
-//         Ok(_) => todo!(),
-//         Err(_) => todo!(),
-//     }
-// }
+    let claims = Claims {
+        sub: username.to_string(),
+        exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
+    };
+    let token = encode_jwt(&claims, "secret").unwrap();
+
+    if login_request.password == password.to_string() {
+        match &user.as_ref() {
+            Some(_) => Ok((StatusCode::OK, Json(json!({"token": token})))),
+            None => Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": format!("no user")})),
+            )),
+        }
+    } else {
+        Ok((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"message": format!("password incorrect")})),
+        ))
+    }
+}
 
 pub async fn validate(request: Request<Body>, next: Next) -> Result<Response, StatusCode> {
     let auth_header = request.headers().get("Authorization");
@@ -71,19 +85,37 @@ pub async fn validate(request: Request<Body>, next: Next) -> Result<Response, St
     }
 }
 
-// pub async fn refresh_token(
-//     State(server_config): State<ServerConfig>,
-// ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-//     let data = server_config.firebase.at("token");
+pub async fn refresh_token(
+    State(server_config): State<ServerConfig>,
+    Json(refresh_request): Json<RefreshRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
+    let refresh_data = decode_jwt(&refresh_request.refresh_token, "secret");
 
-//     match users {
-//         Ok(_) => Ok((StatusCode::OK, Json(json_response))),
-//         Err(e) => Ok((
-//             StatusCode::INTERNAL_SERVER_ERROR,
-//             Json(serde_json::json!({"message": format!("list users fail: { }", e)})),
-//         )),
-//     }
-// }
+    let decode = refresh_data.unwrap();
+
+    let user_data = server_config.firebase.at("users").at(&decode.claims.sub);
+    let user = user_data.get::<User>().await.ok();
+
+    // if user.refresh_token != refresh_request.refresh_token {
+    //     return Ok((
+    //         StatusCode::UNAUTHORIZED,
+    //         Json(serde_json::json!({"message": format!("refresh token incorrect")})),
+    //     ));
+    // }
+
+    let claims = Claims {
+        sub: user.unwrap().username,
+        exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
+    };
+    let token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret("secret".as_ref()),
+    )
+    .unwrap();
+
+    Ok((StatusCode::OK, Json(json!({"token": token}))))
+}
 
 pub fn encode_jwt(claims: &Claims, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     encode(
