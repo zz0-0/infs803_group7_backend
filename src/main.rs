@@ -1,85 +1,62 @@
-mod login;
+mod jwt;
 mod movie;
 mod user;
 
+use std::sync::Arc;
+
 use axum::{
-    body::Body,
-    http::{header, Request, StatusCode},
-    middleware::{self, Next},
-    response::IntoResponse,
+    middleware::from_fn,
     routing::{get, post},
-    Json, Router,
+    Router,
 };
 
-use jsonwebtoken::{decode, DecodingKey, Validation};
-use login::Claims;
+use firebase_rs::Firebase;
+use jwt::*;
 use movie::*;
-use serde_json::Value;
 use tower_http::cors::{Any, CorsLayer};
 use user::*;
+
+#[derive(Clone)]
+pub struct ServerConfig {
+    pub firebase: Arc<Firebase>,
+}
 
 #[tokio::main]
 async fn main() {
     let cors = CorsLayer::new().allow_origin(Any);
+    let firebase = Firebase::new("https://infs803-group7-default-rtdb.firebaseio.com/").unwrap();
+    let firebase = Arc::new(firebase);
+
+    let server_config = ServerConfig { firebase: firebase };
 
     let app = Router::new()
-        .route("/login", post(login::login))
+        // .route("/login", post(login_account))
+        // .route("/authenticate", post(authenticate))
+        // .route("/refresh", post(refresh_token))
+        .route("/users", get(fetch_users))
+        .route_layer(from_fn(validate))
         .route(
-            "/api/users",
-            get(fetch_users).route_layer(middleware::from_fn(auth)),
-        )
-        .route(
-            "/api/user/:id",
+            "/user/:id",
             get(fetch_user)
                 .post(create_user)
                 .patch(update_user)
-                .delete(delete_user)
-                .route_layer(middleware::from_fn(auth)),
+                .delete(delete_user),
         )
+        .route_layer(from_fn(validate))
         .route(
-            "/api/movie/:id",
+            "/movie/:id",
             get(fetch_movie)
                 .post(create_movie)
                 .patch(update_movie)
-                .delete(delete_movie)
-                .route_layer(middleware::from_fn(auth)),
+                .delete(delete_movie),
         )
-        .layer(cors);
+        .route_layer(from_fn(validate))
+        .layer(cors)
+        .with_state(server_config);
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
-}
-
-pub async fn auth(
-    mut req: Request<Body>,
-    next: Next,
-) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    let token = req
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|auth_header| auth_header.to_str().ok())
-        .and_then(|auth_value| {
-            auth_value
-                .strip_prefix("Bearer ")
-                .map(|stripped| stripped.to_owned())
-        });
-
-    let token = token.ok_or_else(|| {
-        let json_error = serde_json::json!({"message": "Missing bearer token".to_string()});
-        (StatusCode::UNAUTHORIZED, Json(json_error))
-    })?;
-
-    let secret = "secret";
-
-    let claims = decode::<Claims>(
-        &token,
-        &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
-    )
-    .unwrap()
-    .claims;
-
-    req.extensions_mut().insert(claims);
-    Ok(next.run(req).await)
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 }
