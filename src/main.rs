@@ -33,7 +33,7 @@ async fn main() {
         .route("/login", post(login_account))
         .route("/refresh", post(refresh_token))
         .route("/users", get(fetch_users))
-        .route_layer(from_fn(validate))
+        // .route_layer(from_fn(validate))
         .route(
             "/user/:id",
             get(fetch_user)
@@ -41,7 +41,7 @@ async fn main() {
                 .patch(update_user)
                 .delete(delete_user),
         )
-        .route_layer(from_fn(validate))
+        // .route_layer(from_fn(validate))
         .route(
             "/movie/:id",
             get(fetch_movie)
@@ -49,7 +49,7 @@ async fn main() {
                 .patch(update_movie)
                 .delete(delete_movie),
         )
-        .route_layer(from_fn(validate))
+        // .route_layer(from_fn(validate))
         .layer(cors)
         .with_state(server_config);
 
