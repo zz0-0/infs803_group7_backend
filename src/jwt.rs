@@ -32,23 +32,29 @@ pub async fn login_account(
     State(server_config): State<ServerConfig>,
     Json(login_request): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    let data = server_config
-        .firebase
-        .at("users")
-        .at(&login_request.username);
-    let user = data.get::<User>().await.ok();
-    let username = &user.as_ref().unwrap().username;
-    let password = &user.as_ref().unwrap().password;
+    // let data = server_config
+    //     .firebase
+    //     .at("users")
+    //     .at(&login_request.username);
 
-    let claims = Claims {
-        sub: username.to_string(),
-        exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
-    };
-    let token = encode_jwt(&claims, "secret").unwrap();
+    let data = server_config.firebase.at("users");
+
+    let users = data.get::<Vec<User>>().await.ok().unwrap();
+
+    let user = users.iter().find(|f| f.username == login_request.username);
+
+    let username = &user.unwrap().username;
+    let password = &user.unwrap().password;
+
+    // let claims = Claims {
+    //     sub: username.to_string(),
+    //     exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
+    // };
+    // let token = encode_jwt(&claims, "secret").unwrap();
 
     if login_request.password == password.to_string() {
-        match &user.as_ref() {
-            Some(_) => Ok((StatusCode::OK, Json(json!({"token": token})))),
+        match &user {
+            Some(_) => Ok((StatusCode::OK, Json(json!({"token": "123"})))),
             None => Ok((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"message": format!("no user")})),
