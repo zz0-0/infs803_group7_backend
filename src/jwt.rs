@@ -6,7 +6,11 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use chrono::{DateTime, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
+use lettre::message::header::ContentType;
+use lettre::transport::smtp::authentication::Credentials;
+use lettre::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -23,6 +27,20 @@ pub struct LoginRequest {
     username: String,
     password: String,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct RegisterRequest {
+    username: String,
+    name: String,
+    password: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ForgetRequest {
+    username: String,
+    email: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct RefreshRequest {
     refresh_token: String,
@@ -32,19 +50,9 @@ pub async fn login_account(
     State(server_config): State<ServerConfig>,
     Json(login_request): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    // let data = server_config
-    //     .firebase
-    //     .at("users")
-    //     .at(&login_request.username);
-
     let data = server_config.firebase.at("users");
-
     let users = data.get::<Vec<User>>().await.ok().unwrap();
-
     let user = users.iter().find(|f| f.username == login_request.username);
-
-    let username = &user.unwrap().username;
-    let password = &user.unwrap().password;
 
     // let claims = Claims {
     //     sub: username.to_string(),
@@ -52,19 +60,114 @@ pub async fn login_account(
     // };
     // let token = encode_jwt(&claims, "secret").unwrap();
 
-    if login_request.password == password.to_string() {
-        match &user {
-            Some(_) => Ok((StatusCode::OK, Json(json!({"token": "123"})))),
-            None => Ok((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"message": format!("no user")})),
-            )),
+    match &user {
+        Some(_) => {
+            let username = &user.unwrap().username;
+            let password = &user.unwrap().password;
+            if login_request.password == password.to_string() {
+                Ok((StatusCode::OK, Json(json!({"token": "123"}))))
+            } else {
+                Ok((
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({"message": format!("password incorrect")})),
+                ))
+            }
         }
-    } else {
-        Ok((
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"message": format!("password incorrect")})),
-        ))
+        None => Ok((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"message": format!("no user")})),
+        )),
+    }
+}
+
+pub async fn register_account(
+    State(server_config): State<ServerConfig>,
+    Json(register_request): Json<RegisterRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
+    let data = server_config.firebase.at("users");
+    let users = data.get::<Vec<User>>().await.ok().unwrap();
+    let user = users
+        .iter()
+        .find(|f| f.username == register_request.username);
+
+    match &user {
+        Some(_) => Ok((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"message": format!("Same username exist")})),
+        )),
+        None => {
+            let id = users.last().unwrap().id - 1;
+            let data1 = server_config.firebase.at("users").at(&id.to_string());
+
+            let user1 = User {
+                id: id + 1,
+                name: register_request.name,
+                level: 1,
+                username: register_request.username,
+                password: register_request.password,
+                created_at: chrono::offset::Utc::now().to_string(),
+                updated_at: chrono::offset::Utc::now().to_string(),
+                deleted: false,
+            };
+
+            let user1 = data1.update::<User>(&user1).await;
+
+            match user1 {
+                Ok(_) => Ok((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"message": format!("User registered")})),
+                )),
+                Err(e) => Ok((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"message": format!("update user fail: { }", e)})),
+                )),
+            }
+        }
+    }
+}
+
+pub async fn forget_account(
+    State(server_config): State<ServerConfig>,
+    Json(forget_request): Json<ForgetRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
+    let data = server_config.firebase.at("users");
+    let users = data.get::<Vec<User>>().await.ok().unwrap();
+    let user = users.iter().find(|f| f.username == forget_request.username);
+
+    match &user {
+        Some(_) => {
+            let email = Message::builder()
+                .from("zz11009988@outlook.com".parse().unwrap())
+                .to(forget_request.email.parse().unwrap())
+                .subject("Reset your password")
+                .header(ContentType::TEXT_PLAIN)
+                .body(String::from("Follow the link to reset your password"))
+                .unwrap();
+
+            let creds = Credentials::new("smtp_username".to_owned(), "smtp_password".to_owned());
+
+            // Open a remote connection to gmail
+            let mailer = SmtpTransport::relay("smtp.gmail.com")
+                .unwrap()
+                .credentials(creds)
+                .build();
+
+            // Send the email
+            match mailer.send(&email) {
+                Ok(_) => Ok((
+                    StatusCode::OK,
+                    Json(json!({"message": "recovery email has been sent"})),
+                )),
+                Err(e) => Ok((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"message": format!("email cannot be sent")})),
+                )),
+            }
+        }
+        None => Ok((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"message": format!("no user")})),
+        )),
     }
 }
 

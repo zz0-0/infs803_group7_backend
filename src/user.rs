@@ -14,7 +14,7 @@ use serde_with::skip_serializing_none;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
     // #[serde(deserialize_with = "from_string")]
-    pub id: i8,
+    pub id: i32,
     pub name: String,
     pub level: i8,
     pub username: String,

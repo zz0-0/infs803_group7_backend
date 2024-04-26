@@ -31,6 +31,8 @@ async fn main() {
 
     let app = Router::new()
         .route("/login", post(login_account))
+        .route("/register", post(register_account))
+        .route("/forget", post(forget_account))
         .route("/refresh", post(refresh_token))
         .route("/users", get(fetch_users))
         // .route_layer(from_fn(validate))
