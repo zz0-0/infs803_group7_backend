@@ -6,7 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::{DateTime, Utc};
+
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use lettre::message::header::ContentType;
 use lettre::transport::smtp::authentication::Credentials;
@@ -54,18 +54,19 @@ pub async fn login_account(
     let users = data.get::<Vec<User>>().await.ok().unwrap();
     let user = users.iter().find(|f| f.username == login_request.username);
 
-    // let claims = Claims {
-    //     sub: username.to_string(),
-    //     exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
-    // };
-    // let token = encode_jwt(&claims, "secret").unwrap();
-
     match &user {
         Some(_) => {
             let username = &user.unwrap().username;
             let password = &user.unwrap().password;
+
+            let claims = Claims {
+                sub: username.to_string(),
+                exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
+            };
+            let token = encode_jwt(&claims, "secret").unwrap();
+
             if login_request.password == password.to_string() {
-                Ok((StatusCode::OK, Json(json!({"token": "123"}))))
+                Ok((StatusCode::OK, Json(json!({"token": token}))))
             } else {
                 Ok((
                     StatusCode::UNAUTHORIZED,
@@ -89,7 +90,7 @@ pub async fn register_account(
     let user = users
         .iter()
         .find(|f| f.username == register_request.username);
-
+    let mut username = String::new();
     match &user {
         Some(_) => Ok((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -109,17 +110,23 @@ pub async fn register_account(
                 updated_at: chrono::offset::Utc::now().to_string(),
                 deleted: false,
             };
+            username = user1.clone().username;
 
             let user1 = data1.update::<User>(&user1).await;
 
             match user1 {
-                Ok(_) => Ok((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"message": format!("User registered")})),
-                )),
+                Ok(_) => {
+                    let claims = Claims {
+                        sub: username.to_string(),
+                        exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp()
+                            as usize,
+                    };
+                    let token = encode_jwt(&claims, "secret").unwrap();
+                    Ok((StatusCode::OK, Json(json!({"token": token}))))
+                }
                 Err(e) => Ok((
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"message": format!("update user fail: { }", e)})),
+                    Json(serde_json::json!({"message": format!("register user fail: { }", e)})),
                 )),
             }
         }
@@ -177,6 +184,7 @@ pub async fn validate(request: Request<Body>, next: Next) -> Result<Response, St
     match auth_header {
         Some(header_value) => {
             let token = header_value.to_str().unwrap().trim_start_matches("Bearer ");
+
             let secret = "secret";
 
             match decode_jwt(token, secret) {

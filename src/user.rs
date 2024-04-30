@@ -84,7 +84,7 @@ pub async fn update_user(
         Ok(s) => Ok((StatusCode::OK, Json(serde_json::json!({"message": s.data})))),
         Err(e) => Ok((
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"message": format!("update user fail: { }", e)})),
+            Json(serde_json::json!({"message": format!("user fail: { }", e)})),
         )),
     }
 }
