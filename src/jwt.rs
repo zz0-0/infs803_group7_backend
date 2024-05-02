@@ -61,12 +61,22 @@ pub async fn login_account(
 
             let claims = Claims {
                 sub: username.to_string(),
+                exp: (chrono::Utc::now() + chrono::Duration::minutes(15)).timestamp() as usize,
+            };
+
+            let claims1 = Claims {
+                sub: username.to_string(),
                 exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
             };
-            let token = encode_jwt(&claims, "secret").unwrap();
+
+            let access = encode_jwt(&claims, "secret").unwrap();
+            let refresh = encode_jwt(&claims1, "secret").unwrap();
 
             if login_request.password == password.to_string() {
-                Ok((StatusCode::OK, Json(json!({"token": token}))))
+                Ok((
+                    StatusCode::OK,
+                    Json(json!({"access": access, "refresh": refresh})),
+                ))
             } else {
                 Ok((
                     StatusCode::UNAUTHORIZED,
@@ -118,11 +128,22 @@ pub async fn register_account(
                 Ok(_) => {
                     let claims = Claims {
                         sub: username.to_string(),
+                        exp: (chrono::Utc::now() + chrono::Duration::minutes(15)).timestamp()
+                            as usize,
+                    };
+
+                    let claims1 = Claims {
+                        sub: username.to_string(),
                         exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp()
                             as usize,
                     };
-                    let token = encode_jwt(&claims, "secret").unwrap();
-                    Ok((StatusCode::OK, Json(json!({"token": token}))))
+
+                    let access = encode_jwt(&claims, "secret").unwrap();
+                    let refresh = encode_jwt(&claims1, "secret").unwrap();
+                    Ok((
+                        StatusCode::OK,
+                        Json(json!({"access": access, "refresh": refresh})),
+                    ))
                 }
                 Err(e) => Ok((
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -144,7 +165,7 @@ pub async fn forget_account(
     match &user {
         Some(_) => {
             let email = Message::builder()
-                .from("zz11009988@outlook.com".parse().unwrap())
+                .from("".parse().unwrap())
                 .to(forget_request.email.parse().unwrap())
                 .subject("Reset your password")
                 .header(ContentType::TEXT_PLAIN)
@@ -210,28 +231,29 @@ pub async fn refresh_token(
 
     let decode = refresh_data.unwrap();
 
-    let user_data = server_config.firebase.at("users").at(&decode.claims.sub);
-    let user = user_data.get::<User>().await.ok();
+    let data = server_config.firebase.at("users");
+    let users = data.get::<Vec<User>>().await.ok().unwrap();
+    let user = users.iter().find(|f| f.username == decode.claims.sub);
 
-    // if user.refresh_token != refresh_request.refresh_token {
-    //     return Ok((
-    //         StatusCode::UNAUTHORIZED,
-    //         Json(serde_json::json!({"message": format!("refresh token incorrect")})),
-    //     ));
-    // }
+    match user {
+        Some(s) => {
+            let claims = Claims {
+                sub: s.username.to_string(),
+                exp: (chrono::Utc::now() + chrono::Duration::minutes(15)).timestamp() as usize,
+            };
 
-    let claims = Claims {
-        sub: user.unwrap().username,
-        exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
-    };
-    let token = encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret("secret".as_ref()),
-    )
-    .unwrap();
+            let access = encode_jwt(&claims, "secret").unwrap();
 
-    Ok((StatusCode::OK, Json(json!({"token": token}))))
+            Ok((
+                StatusCode::OK,
+                Json(json!({"access": access, "refresh": &refresh_request.refresh_token})),
+            ))
+        }
+        None => Ok((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"message": "refresh token fail"})),
+        )),
+    }
 }
 
 pub fn encode_jwt(claims: &Claims, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
@@ -246,10 +268,6 @@ pub fn decode_jwt(
     token: &str,
     secret: &str,
 ) -> Result<TokenData<Claims>, jsonwebtoken::errors::Error> {
-    // let validation = Validation {
-    //     algorithms: vec![Algorithm::HS256],
-    //     ..Default::default()
-    // };
     decode(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
