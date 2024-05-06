@@ -38,9 +38,12 @@ pub async fn fetch_favorites(
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     let data = server_config.firebase.at("favorites");
     let favorites = data.get::<Vec<Option<Favorite>>>().await;
-    let json_response = serde_json::json!({"favorites": favorites.as_ref().unwrap()});
+
     match favorites {
-        Ok(_) => Ok((StatusCode::OK, Json(json_response))),
+        Ok(_) => {
+            let json_response = serde_json::json!({"favorites": favorites.as_ref().unwrap()});
+            Ok((StatusCode::OK, Json(json_response)))
+        }
         Err(e) => Ok((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"message": format!("list favorites fail: { }", e)})),
