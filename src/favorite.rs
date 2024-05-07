@@ -67,7 +67,7 @@ pub async fn create_favorite(
     }
 }
 
-pub async fn delete_favorite(
+pub async fn update_favorite(
     State(server_config): State<ServerConfig>,
     Path(id): Path<String>,
     Json(favorite): Json<Favorite>,

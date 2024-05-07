@@ -51,9 +51,9 @@ async fn main() {
                 .route_layer(from_fn(validate)),
         )
         .route(
-            "/favorite/:id",
+            "/favorites/:id",
             post(create_favorite)
-                .delete(delete_favorite)
+                .patch(update_favorite)
                 .route_layer(from_fn(validate)),
         )
         .route(
