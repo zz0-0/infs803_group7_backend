@@ -1,7 +1,3 @@
-Sure, here is the translated README file in English, combining the provided information and screenshots:
-
----
-
 # Movie Explorer App
 
 ## Project Overview
