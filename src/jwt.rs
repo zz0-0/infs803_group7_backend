@@ -53,34 +53,13 @@ pub async fn login_account(
     let data = server_config.firebase.at("users");
     let users = data.get::<Vec<User>>().await.ok().unwrap();
     let user = users.iter().find(|f| f.username == login_request.username);
-    
+
     match &user {
         Some(_) => {
             let username = &user.unwrap().username;
             let password = &user.unwrap().password;
             let level = &user.unwrap().level;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            
             let claims = Claims {
                 sub: username.to_string(),
                 exp: (chrono::Utc::now() + chrono::Duration::minutes(15)).timestamp() as usize,
