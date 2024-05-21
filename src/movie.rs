@@ -31,6 +31,7 @@ pub struct Movie {
     pub budget_x: f64,
     pub revenue: f64,
     pub country: String,
+    pub deleted: bool,
 }
 
 pub async fn fetch_movies(
