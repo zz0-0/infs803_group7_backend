@@ -39,7 +39,7 @@ async fn main() {
         .route("/users", get(fetch_users).route_layer(from_fn(validate)))
         .route("/movies", get(fetch_movies).route_layer(from_fn(validate)))
         .route(
-            "/favorites",
+            "/favorites/:user_id",
             get(fetch_favorites).route_layer(from_fn(validate)),
         )
         .route(
@@ -51,7 +51,7 @@ async fn main() {
                 .route_layer(from_fn(validate)),
         )
         .route(
-            "/favorites/:id",
+            "/favorites/:user_id/:favorite_id",
             post(create_favorite)
                 .patch(update_favorite)
                 .route_layer(from_fn(validate)),

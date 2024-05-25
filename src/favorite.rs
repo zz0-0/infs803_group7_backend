@@ -35,8 +35,9 @@ pub struct Favorite {
 
 pub async fn fetch_favorites(
     State(server_config): State<ServerConfig>,
+    Path(user_id): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    let data = server_config.firebase.at("favorites");
+    let data = server_config.firebase.at("favorites").at(&user_id);
     let favorites = data.get::<Vec<Option<Favorite>>>().await;
 
     match favorites {
@@ -53,10 +54,15 @@ pub async fn fetch_favorites(
 
 pub async fn create_favorite(
     State(server_config): State<ServerConfig>,
-    Path(id): Path<String>,
+    Path((user_id, favorite_id)): Path<(String, String)>,
+    // Path(favorite_id): Path<String>,
     Json(favorite): Json<Favorite>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    let data = server_config.firebase.at("favorites").at(&id);
+    let data = server_config
+        .firebase
+        .at("favorites")
+        .at(&user_id)
+        .at(&favorite_id);
     let favorite = data.update::<Favorite>(&favorite).await;
     match favorite {
         Ok(s) => Ok((StatusCode::OK, Json(serde_json::json!({"message": s.data})))),
@@ -69,10 +75,14 @@ pub async fn create_favorite(
 
 pub async fn update_favorite(
     State(server_config): State<ServerConfig>,
-    Path(id): Path<String>,
+    Path((user_id, favorite_id)): Path<(String, String)>,
     Json(favorite): Json<Favorite>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    let data = server_config.firebase.at("favorites").at(&id);
+    let data = server_config
+        .firebase
+        .at("favorites")
+        .at(&user_id)
+        .at(&favorite_id);
     let favorite = data.update::<Favorite>(&favorite).await;
     match favorite {
         Ok(s) => Ok((StatusCode::OK, Json(serde_json::json!({"message": s.data})))),

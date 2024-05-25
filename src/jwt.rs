@@ -59,6 +59,7 @@ pub async fn login_account(
             let username = &user.unwrap().username;
             let password = &user.unwrap().password;
             let level = &user.unwrap().level;
+            let id = &user.unwrap().id - 1;
 
             let claims = Claims {
                 sub: username.to_string(),
@@ -76,7 +77,7 @@ pub async fn login_account(
             if login_request.password == password.to_string() {
                 Ok((
                     StatusCode::OK,
-                    Json(json!({"access": access, "refresh": refresh, "level": level})),
+                    Json(json!({"id": id, "access": access, "refresh": refresh, "level": level})),
                 ))
             } else {
                 Ok((
@@ -143,7 +144,9 @@ pub async fn register_account(
                     let refresh = encode_jwt(&claims1, "secret").unwrap();
                     Ok((
                         StatusCode::OK,
-                        Json(json!({"access": access, "refresh": refresh})),
+                        Json(
+                            json!({"id": id + 1, "access": access, "refresh": refresh, "level": 1}),
+                        ),
                     ))
                 }
                 Err(e) => Ok((
